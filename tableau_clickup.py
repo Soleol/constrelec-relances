@@ -1,4 +1,4 @@
-# Constrelec V1 · identité et configuration propres - Identité personnelle, défilement conservé et délai Admin AO
+# Constrelec V4 · logo sombre, portefeuille personnel ClickUp, quatre relances, commentaire par Entrée
 """Lancer : py -m streamlit run tableau_clickup.py --server.address 127.0.0.1"""
 import ssl
 import secrets
@@ -918,19 +918,23 @@ def retour_oauth():
 def afficher_connexion_commentaires():
     personnel = st.session_state.get('_clickup_personnel')
     if personnel:
-        st.caption('Connecté à ClickUp · ' + personnel['utilisateur']['nom'])
+        st.success('ClickUp synchronisé : ' + personnel['utilisateur']['nom'], icon='✅')
         with st.expander('Mon compte ClickUp'):
-            st.caption('Vos relances, commentaires et modifications sont enregistrés sous ce compte.')
-            st.caption('Identifiant ClickUp : ' + personnel['utilisateur']['id'])
-            if st.button('Déconnecter mon compte', key='oauth_deconnexion', use_container_width=True):
+            st.caption('Relances et commentaires enregistrés sous votre identité ClickUp.')
+            st.caption('ID du compte : ' + personnel['utilisateur']['id'])
+            if st.button('Déconnecter mon compte ClickUp', key='oauth_deconnexion', use_container_width=True):
                 st.session_state.pop('_clickup_personnel', None)
+                if st.session_state.get('vendeur_actif') == 'Mes relances':
+                    st.session_state['vendeur_actif'] = 'Portefeuille global'
                 st.rerun()
         return
     config = configuration_oauth()
     if not config:
         with st.container(key='action_clickup_connexion'):
-            st.link_button('Synchroniser mon ClickUp', 'https://app.clickup.com/', disabled=True, use_container_width=True)
-        st.caption('Connexion personnelle à configurer par l’administrateur.')
+            st.button('Synchroniser mon compte ClickUp', key='oauth_config_manquante',
+                      disabled=True, use_container_width=True,
+                      help='La synchronisation nécessite une application OAuth ClickUp configurée dans les Secrets Streamlit.')
+        st.caption('Synchronisation à activer par l’administrateur (identifiant OAuth, secret OAuth et URL de retour).')
         return
     attente = st.session_state.get('_oauth_demande')
     if attente:
@@ -939,6 +943,8 @@ def afficher_connexion_commentaires():
             st.session_state.pop('_oauth_demande', None)
             if 'jeton' in resultat:
                 st.session_state['_clickup_personnel'] = resultat
+                # Après synchronisation, afficher les projets affectés au compte connecté.
+                st.session_state['vendeur_actif'] = 'Mes relances'
                 st.session_state['_oauth_confirmation'] = resultat['utilisateur']['nom']
                 st.session_state.pop('_oauth_message', None)
                 st.rerun()
@@ -954,9 +960,9 @@ def afficher_connexion_commentaires():
     url = 'https://app.clickup.com/api?' + urlencode({
         'client_id': config['client_id'], 'redirect_uri': config['redirect_uri'], 'state': attente[0]})
     with st.container(key='action_clickup_connexion'):
-        st.link_button('Synchroniser mon ClickUp', url, type='primary', use_container_width=True,
+        st.link_button('Synchroniser mon compte ClickUp', url, type='primary', use_container_width=True,
                        help='Connecter mon compte ClickUp pour enregistrer mes relances et mes commentaires.')
-    st.caption('Connectez-vous pour enregistrer vos relances et vos commentaires sous votre nom.')
+    st.caption('Connectez votre compte ClickUp personnel : vos commentaires et relances apparaîtront sous votre nom.')
     if st.session_state.get('_oauth_message'):
         st.caption(st.session_state['_oauth_message'])
 
@@ -1292,7 +1298,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 .hero>div{position:relative;z-index:1}
 
 @media(max-width:650px){}
-.st-key-brand_sidebar{margin-top:-28px;margin-bottom:12px;padding:12px;background:#FFFFFF;border-radius:13px;border:1px solid #D7D7D7}
+.st-key-brand_sidebar{margin-top:-28px;margin-bottom:12px;padding:12px;background:#111419;border-radius:13px;border:1px solid #2D333B}
 [class*="st-key-action_"] button,[class*="st-key-action_"] a{padding:8px 10px;font-size:13px;white-space:normal;justify-content:center}
 [class*="st-key-action_"] button:before,[class*="st-key-action_"] a:before{width:21px;height:21px}
 [class*="st-key-actions_compactes_"]{width:550px!important;max-width:100%!important}
@@ -1365,7 +1371,9 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary span,
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary svg{color:#111111!important;-webkit-text-fill-color:#111111!important}
 </style>""", unsafe_allow_html=True)
-if not st.session_state.get("vendeur_actif"):
+if st.session_state.get("vendeur_actif") not in ("Portefeuille global", "Mes relances", "Admin"):
+    st.session_state["vendeur_actif"] = "Portefeuille global"
+if st.session_state["vendeur_actif"] == "Mes relances" and not compte_personnel_disponible():
     st.session_state["vendeur_actif"] = "Portefeuille global"
 vendeur_titre = st.session_state["vendeur_actif"]
 if vendeur_titre == "Portefeuille global":
@@ -1780,30 +1788,25 @@ def nom_vendeur(nom):
     return libelle_vendeur(nom) if nom else "Choisir votre nom…"
 
 
-COULEURS = dict(COULEURS_GRAPHIQUE)
 with st.sidebar:
     st.markdown('<h3 class="titre-portefeuilles">Vos portefeuilles</h3>', unsafe_allow_html=True)
     def choisir_vendeur(nom):
         st.session_state["vendeur_actif"] = nom
-    st.button("Portefeuille global", key="choisir_global", on_click=choisir_vendeur, args=("Portefeuille global",), use_container_width=True, type="primary" if st.session_state.get("vendeur_actif") == "Portefeuille global" else "secondary")
-    groupes = {"Équipe commerciale": VENDEURS, "Non attribuées": ["Admin"]}
-    for groupe, membres in groupes.items():
-        with st.expander(groupe, expanded=False):
-            for personne in membres:
-                indice = (VENDEURS + ["Admin"]).index(personne)
-                selectionne = st.session_state.get("vendeur_actif") == personne
-                couleur_bouton = COULEURS.get(personne, "#9299A3")
-                fond = couleur_bouton if selectionne else "#181C21"
-                st.markdown(f'<style>.st-key-vendeur_{indice} button{{border-left:5px solid {couleur_bouton}!important;background:{fond}!important;color:{"#101419" if selectionne else "#edf0f4"}!important;font-weight:600;width:100%;text-align:left}}.st-key-vendeur_{indice} button:hover{{border-color:{couleur_bouton}}}</style>', unsafe_allow_html=True)
-                with st.container(key=f"vendeur_{indice}"):
-                    st.button(libelle_vendeur(personne), key=f"choisir_{indice}", on_click=choisir_vendeur, args=(personne,), use_container_width=True)
-    vendeur = st.session_state.get("vendeur_actif", "")
+    personnel_connecte = compte_personnel_disponible()
+    st.button("Mes relances", key="choisir_mes_relances", on_click=choisir_vendeur,
+              args=("Mes relances",), use_container_width=True, disabled=not personnel_connecte,
+              type="primary" if st.session_state.get("vendeur_actif") == "Mes relances" else "secondary",
+              help="Relances des projets qui vous sont attribués dans ClickUp. Connectez d’abord votre compte personnel.")
+    st.button("Portefeuille global", key="choisir_global", on_click=choisir_vendeur,
+              args=("Portefeuille global",), use_container_width=True,
+              type="primary" if st.session_state.get("vendeur_actif") == "Portefeuille global" else "secondary")
+    st.button("Non attribuées", key="choisir_admin", on_click=choisir_vendeur,
+              args=("Admin",), use_container_width=True,
+              type="primary" if st.session_state.get("vendeur_actif") == "Admin" else "secondary")
+    vendeur = st.session_state.get("vendeur_actif", "Portefeuille global")
     st.caption("Offres envoyées depuis le " + DEBUT_RELANCES.strftime("%d.%m.%Y") + " · 1ère relance à 15 jours · suivantes à 30 jours")
     if ACTIVER_REGLE_ADMIN_AO:
         st.caption("Projets AO non attribués : délai de 60 jours.")
-if not vendeur:
-    st.info("Sélectionnez votre nom pour afficher vos relances à effectuer.")
-    st.stop()
 if manquants:
     st.error("Certains champs ClickUp ne sont pas identifiés : " + ", ".join(manquants) + ". Envoyez une capture de ce message pour corriger la détection.")
     st.stop()
@@ -1828,13 +1831,14 @@ with st.container(key="vue_portefeuille_" + vendeur):
             st.warning("Comptes ambigus exclus : " + ", ".join(ambigus))
     elif vendeur == "Admin":
         ids_vendeur = []
-    else:
-        ids_vendeur = correspondances[vendeur]
-        if len(ids_vendeur) > 1:
-            st.warning("Plusieurs comptes ClickUp portent ce nom. Leur identification doit être précisée.")
+    elif vendeur == "Mes relances":
+        compte = (st.session_state.get('_clickup_personnel') or {}).get('utilisateur') or {}
+        if not compte.get('id'):
+            st.info('Synchronisez votre compte ClickUp pour voir les offres qui vous sont attribuées.')
             st.stop()
-    if not ids_vendeur and not global_actif and vendeur != "Admin":
-        st.info("Aucun compte vendeur correspondant dans les données chargées.")
+        ids_vendeur = [str(compte['id'])]
+    else:
+        st.error('Portefeuille non reconnu. Sélectionnez un portefeuille valide.')
         st.stop()
     if global_actif:
         vue_vendeur = df[df.apply(lambda r: r["_responsables"] == ["Non assigné"] or bool(set(ids_vendeur).intersection(r["_ids"])), axis=1)]
@@ -1896,8 +1900,10 @@ with st.container(key="vue_portefeuille_" + vendeur):
                 if jour and DEBUT <= jour <= aujourdhui:
                     historiques.append({"ID": str(t["id"]), "Étape": etape, "Date": jour,
                         "Prix": montant_chf(champs_hist.get(mapping["Prix offre"], {})),
-                        "Vendeurs": ["Admin"] if sans_assignation else [nom_v for nom_v, ids_v in correspondances.items()
-                                     if len(ids_v) == 1 and ids_v[0] in assignes and ids_v[0] in ids_vendeur]})
+                        "Vendeurs": (["Mes relances"] if vendeur == "Mes relances" else
+                                     ["Admin"] if sans_assignation else
+                                     [nom_v for nom_v, ids_v in correspondances.items()
+                                      if len(ids_v) == 1 and ids_v[0] in assignes and ids_v[0] in ids_vendeur])})
 
         # Deux vues récentes suffisent ; une vue évincée sera recalculée à l’identique.
         historique_cache = cache_portefeuilles["historiques"]
@@ -1911,6 +1917,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
     premier_lundi = DEBUT - timedelta(days=DEBUT.weekday())
     dernier_lundi = aujourdhui - timedelta(days=aujourdhui.weekday())
     vendeurs_graph = list(COULEURS_GRAPHIQUE) if global_actif else [vendeur]
+    couleurs_graph = {**COULEURS_GRAPHIQUE, "Mes relances": "#E22323"}
     mois_courts = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
     semaines, ordre_semaines = {}, []
     jour = premier_lundi
@@ -1948,7 +1955,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
                   "axis": {"labelAngle": -60, "labelOverlap": False, "labelFontSize": 10}},
             "y": {"field": "Montant CHF", "type": "quantitative", "stack": "zero", "title": None},
             "color": {"field": "Vendeur", "type": "nominal",
-                      "scale": {"domain": vendeurs_graph, "range": [COULEURS_GRAPHIQUE[n] for n in vendeurs_graph]},
+                      "scale": {"domain": vendeurs_graph, "range": [couleurs_graph[n] for n in vendeurs_graph]},
                       "legend": None},
             "tooltip": [{"field": "Semaine", "type": "nominal"},
                         {"field": "Vendeur", "type": "nominal"},
@@ -1959,7 +1966,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
     }, theme=None, use_container_width=True, key="historique_" + vendeur)
     legende = "".join(
         '<span style="display:inline-flex;align-items:center;gap:6px;flex-shrink:0">'
-        '<span style="width:9px;height:9px;border-radius:2px;background:' + COULEURS_GRAPHIQUE[nom_v] + '"></span>'
+        '<span style="width:9px;height:9px;border-radius:2px;background:' + couleurs_graph[nom_v] + '"></span>'
         + escape(libelle_vendeur(nom_v)) + '</span>' for nom_v in vendeurs_graph)
     st.markdown('<div style="display:flex;justify-content:flex-start;gap:16px;flex-wrap:nowrap;overflow-x:auto;'
                 'font-size:12px;color:#CBD0D8;margin-top:-10px;margin-bottom:10px;padding:0 0 4px">' + legende + '</div>',
@@ -2268,14 +2275,15 @@ with st.container(key="vue_portefeuille_" + vendeur):
                     st.caption("Prochaine relance : " + r["Prochaine action effective"].strftime("%d.%m.%Y"))
             cle_commentaire = "texte_commentaire_" + vendeur + "_" + r["ID"]
             commentaire_bloque = st.session_state.get("commentaire_incertain_" + r["ID"], False)
-            with st.form("form_commentaire_" + vendeur + "_" + r["ID"], clear_on_submit=False, border=False):
+            with st.form("form_commentaire_" + vendeur + "_" + r["ID"],
+                         clear_on_submit=False, enter_to_submit=True, border=False):
                 zone_texte, zone_envoi = st.columns([5, 1], vertical_alignment="center")
                 with zone_texte:
                     st.text_input("Commentaire client", key=cle_commentaire, label_visibility="collapsed",
-                                  placeholder="Ajouter un commentaire au client · Entrée pour publier dans ClickUp",
-                                  disabled=commentaire_bloque or not bool(st.session_state.get("_clickup_personnel")))
+                                  placeholder="Saisir un commentaire · Entrée pour publier dans ClickUp",
+                                  disabled=commentaire_bloque or not compte_personnel_disponible())
                 with zone_envoi:
-                    st.form_submit_button("Publier", disabled=commentaire_bloque or not bool(st.session_state.get("_clickup_personnel")),
+                    st.form_submit_button("Publier", disabled=commentaire_bloque or not compte_personnel_disponible(),
                                           on_click=soumettre_commentaire, args=(r["ID"], cle_commentaire),
                                           use_container_width=True)
             retour_commentaire = st.session_state.get("retour_commentaire_" + r["ID"])
