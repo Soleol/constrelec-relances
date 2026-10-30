@@ -44,7 +44,8 @@ def parametre(nom, valeur_par_defaut=""):
 
 LISTE_ID = parametre("CONSTRELEC_CLICKUP_LIST_ID")
 STATUT_OFFRES = parametre("CONSTRELEC_STATUT_OFFRES", "10_ENVOYéES")
-STATUT_PERDU = parametre("CONSTRELEC_STATUT_PERDU", "Perdues")
+# Destination propre à Constrelec ; ne pas reprendre l'ancien secret « Perdues ».
+STATUT_PERDU = "60_Perdus"
 DEBUT_TEXTE = parametre("CONSTRELEC_DATE_DEBUT", "2026-01-01")
 ACTIVER_REGLE_ADMIN_AO = parametre("CONSTRELEC_REGLE_ADMIN_AO", "false").lower() == "true"
 try:
@@ -3208,6 +3209,8 @@ ALIASES_CHAMPS = {
 
 ALIASES_CHAMPS.update(aliases_relances())
 ALIASES_CHAMPS["Prochaine action"] = ["A - Prochaine action"]
+# La date de perte est un champ Date ClickUp distinct des dates des quatre relances.
+ALIASES_CHAMPS["Date offre perdue"] = ["A - Offre perdue"]
 from relances_regles import echeance_planifiee, est_admin_ao
 
 def normaliser_nom_champ(nom):
@@ -3218,19 +3221,49 @@ def normaliser_nom_champ(nom):
 NOMS_CHAMPS_UTILISES = frozenset(normaliser_nom_champ(n)
     for noms in ALIASES_CHAMPS.values() for n in noms) | {'adresse', 'a - adresse'}
 
-NOMS_MOTIFS_PERTE = ("Motif de perte", "Raison de la perte", "Raison perte", "Motif offre perdue",
-                     "A - Motif de perte", "Motifs de perte", "Motif de refus")
+NOMS_MOTIFS_PERTE = ("Raison du refus",)
+
 
 def est_champ_motif_perte(champ):
-    return (champ.get('type') == 'drop_down' and
-            normaliser_nom_champ(champ.get('name', '')) in
-            {normaliser_nom_champ(nom) for nom in NOMS_MOTIFS_PERTE})
+    return normaliser_nom_champ(champ.get('name', '')) == normaliser_nom_champ("Raison du refus")
+
+
+def champ_perte_unique(tache, nom, type_attendu):
+    """Trouve un champ sur la tâche OU dans les définitions de liste ClickUp.
+
+    Les champs non renseignés peuvent ne pas avoir de valeur sur une tâche.
+    La définition du champ reste utilisable pour écrire sans créer de doublon.
+    """
+    normalise = normaliser_nom_champ(nom)
+    candidats = {}
+    for champ in st.session_state.get('_definitions_champs', {}).values():
+        if normaliser_nom_champ(champ.get('name', '')) == normalise and champ.get('id'):
+            candidats[str(champ['id'])] = dict(champ)
+    for champ in tache.get('custom_fields', []):
+        if normaliser_nom_champ(champ.get('name', '')) == normalise and champ.get('id'):
+            identifiant = str(champ['id'])
+            candidats[identifiant] = {**candidats.get(identifiant, {}), **champ}
+    if len(candidats) != 1:
+        raise ValueError(
+            f'Le champ ClickUp « {nom} » est absent ou ambigu. '
+            'Vérifiez qu’il existe une seule fois dans la liste Constrelec.'
+        )
+    resultat = next(iter(candidats.values()))
+    if resultat.get('type') != type_attendu:
+        types = {'drop_down': 'Liste déroulante', 'date': 'Date'}
+        raise ValueError(
+            f'Le champ ClickUp « {nom} » doit être de type {types.get(type_attendu, type_attendu)}.'
+        )
+    return resultat
+
 
 def champ_motif_perte(tache):
-    candidats = [c for c in tache.get('custom_fields', []) if est_champ_motif_perte(c)]
-    if len(candidats) != 1:
-        raise ValueError('Le champ ClickUp « Motif de perte » (liste déroulante) est absent ou ambigu. Vérifiez son nom.')
-    return candidats[0]
+    return champ_perte_unique(tache, 'Raison du refus', 'drop_down')
+
+
+def champ_date_offre_perdue(tache):
+    return champ_perte_unique(tache, 'A - Offre perdue', 'date')
+
 
 def compacter_champ(champ):
     # Garder les champs sans nom : leur absence doit toujours être détectable.
@@ -3549,50 +3582,89 @@ def statut_perdu_clickup(liste):
 
 
 def enregistrer_offre_perdue(task_id, cle, statut, motif):
-    # Le statut doit exister dans la liste ; aucune création ou suppression de tâche.
+    """Écrit raison, date, puis statut (statut toujours en dernier).
+
+    Aucune transaction multi-champs n'existe dans l'API ClickUp : les relectures
+    évitent de déplacer une tâche si un des deux champs n'est pas confirmé.
+    """
     liste = lire_api(f'list/{LISTE_ID}', cle)
-    disponibles = [statut_perdu_clickup(liste)]
-    if not statut or statut not in disponibles or normaliser_nom_champ(statut) == normaliser_nom_champ(STATUT_OFFRES):
-        raise ValueError('Sélectionnez le statut ClickUp correspondant à une offre perdue.')
+    cible = statut_perdu_clickup(liste)
+    if not statut or normaliser_nom_champ(statut) != normaliser_nom_champ(cible):
+        raise ValueError('Le statut de destination doit être exactement « 60_Perdus ».')
+
     frais = lire_tache(task_id, cle)
     actuel = (frais.get('status') or {}).get('status', '')
-    if actuel != statut and normaliser_nom_champ(actuel) != normaliser_nom_champ(STATUT_OFFRES):
-        raise ValueError('Le statut de ce projet a changé. Actualisez avant de continuer.')
-    champ = champ_motif_perte(frais)
-    options = [o for o in champ.get('type_config', {}).get('options', []) if o.get('name') == motif]
-    if len(options) != 1 or not options[0].get('id'):
-        raise ValueError('Sélectionnez un motif de perte valide et unique.')
-    if decoder(champ) != motif:
-        requete = Request(f"https://api.clickup.com/api/v2/task/{task_id}/field/{champ['id']}",
-                          method='POST', data=json.dumps({'value': options[0]['id']}).encode(),
+    if (normaliser_nom_champ(actuel) not in
+            {normaliser_nom_champ(STATUT_OFFRES), normaliser_nom_champ(cible)}):
+        raise ValueError('Le statut du projet a changé. Actualisez les données avant de réessayer.')
+
+    # Valider tous les prérequis avant le premier appel de modification.
+    champ_raison = champ_motif_perte(frais)
+    champ_date = champ_date_offre_perdue(frais)
+    options = [o for o in (champ_raison.get('type_config') or {}).get('options', [])
+               if o.get('name') == motif and o.get('id')]
+    if len(options) != 1:
+        raise ValueError('Sélectionnez une raison du refus valide dans la liste ClickUp.')
+    identifiant_option = options[0]['id']
+    jour_perte = aujourd_hui()
+
+    # 1. Écrire et confirmer la raison du refus.
+    if decoder(champ_raison) != motif:
+        requete = Request(f"https://api.clickup.com/api/v2/task/{task_id}/field/{champ_raison['id']}",
+                          method='POST', data=json.dumps({'value': identifiant_option}).encode('utf-8'),
                           headers={'Authorization': cle, 'Content-Type': 'application/json'})
         try:
             with urlopen(requete, context=contexte_tls(), timeout=30) as rep:
                 rep.read()
+        except HTTPError:
+            raise
         except (URLError, TimeoutError, ssl.SSLError):
-            pass  # Relire pour confirmer ; ne jamais renvoyer automatiquement.
+            pass  # Écriture potentiellement reçue : vérifier sans la répéter.
         frais = lire_tache(task_id, cle)
         if decoder(champ_motif_perte(frais)) != motif:
-            raise ValueError('Motif non confirmé dans ClickUp. Le statut n’a pas été modifié. Actualisez avant de réessayer.')
+            raise ValueError('La raison du refus n’est pas confirmée dans ClickUp. Le statut n’a pas été changé.')
+
+    # 2. Enregistrer automatiquement la date d'aujourd'hui à Zurich.
+    # Si l'offre est déjà perdue et datée, conserver la date originale.
+    champ_date = champ_date_offre_perdue(frais)
+    date_existante = lire_date(champ_date.get('value'))
+    deja_perdue = normaliser_nom_champ((frais.get('status') or {}).get('status', '')) == normaliser_nom_champ(cible)
+    date_attendue = date_existante if deja_perdue and date_existante is not None else jour_perte
+    if date_existante != date_attendue:
+        try:
+            ecrire_date_relance(task_id, champ_date['id'], cle)
+        except HTTPError:
+            raise
+        except (URLError, TimeoutError, ssl.SSLError):
+            pass  # Ne pas rejouer automatiquement une requête sans réponse.
+        frais = lire_tache(task_id, cle)
+        date_confirmee = lire_date(champ_date_offre_perdue(frais).get('value'))
+        if date_confirmee != date_attendue:
+            raise ValueError('La date « A - Offre perdue » n’est pas confirmée. Le statut est resté inchangé.')
+
+    # 3. Ultime relecture avant de déplacer la tâche hors des relances actives.
+    frais = lire_tache(task_id, cle)
+    if decoder(champ_motif_perte(frais)) != motif or lire_date(champ_date_offre_perdue(frais).get('value')) != date_attendue:
+        raise ValueError('La raison ou la date n’est plus confirmée. Le statut n’a pas été changé.')
     actuel = (frais.get('status') or {}).get('status', '')
-    if actuel == statut:
+    if normaliser_nom_champ(actuel) == normaliser_nom_champ(cible):
         return frais
     if normaliser_nom_champ(actuel) != normaliser_nom_champ(STATUT_OFFRES):
-        raise ValueError('Le motif est enregistré, mais le statut a changé entre-temps. Actualisez les données.')
+        raise ValueError('Le projet a changé de statut avant la confirmation. Actualisez les données.')
+
     req = Request(f'https://api.clickup.com/api/v2/task/{task_id}', method='PUT',
-                  data=json.dumps({'status': statut}).encode(),
+                  data=json.dumps({'status': cible}).encode('utf-8'),
                   headers={'Authorization': cle, 'Content-Type': 'application/json'})
     try:
         with urlopen(req, context=contexte_tls(), timeout=30) as rep:
             rep.read()
+    except HTTPError:
+        raise
     except (URLError, TimeoutError, ssl.SSLError):
-        resultat = lire_tache(task_id, cle)
-        if (resultat.get('status') or {}).get('status') != statut:
-            raise ValueError('Changement non confirmé. Actualisez avant de réessayer.')
-    else:
-        resultat = lire_tache(task_id, cle)
-    if (resultat.get('status') or {}).get('status') != statut:
-        raise ValueError('Le statut relu diffère. Actualisez les données.')
+        pass  # Le PUT peut avoir abouti : relire avant de proposer un nouvel essai.
+    resultat = lire_tache(task_id, cle)
+    if normaliser_nom_champ((resultat.get('status') or {}).get('status', '')) != normaliser_nom_champ(cible):
+        raise ValueError('Le statut « 60_Perdus » n’a pas été confirmé. Actualisez les données.')
     return resultat
 
 
@@ -3602,7 +3674,9 @@ def confirmer_offre_perdue(task_id, projet):
     try:
         cle = cle_actions_personnelles()
         liste = lire_api(f'list/{LISTE_ID}', cle)
-        champ = champ_motif_perte(lire_tache(task_id, cle))
+        tache = lire_tache(task_id, cle)
+        champ = champ_motif_perte(tache)
+        champ_date_offre_perdue(tache)
     except (HTTPError, URLError, TimeoutError, ssl.SSLError, ValueError) as erreur:
         st.error('Impossible de préparer la mise à jour : ' + str(erreur))
         return
@@ -3612,18 +3686,18 @@ def confirmer_offre_perdue(task_id, projet):
         st.error(str(erreur))
         return
     motifs = [o['name'] for o in champ.get('type_config', {}).get('options', []) if o.get('name')]
-    motif = st.selectbox('Raison de la perte', motifs, index=None, placeholder='Choisir une raison', key='motif_perte_' + task_id)
-    st.caption('Le projet quittera les relances actives. Son historique restera conservé.')
+    motif = st.selectbox('Raison du refus', motifs, index=None, placeholder='Choisir une raison', key='motif_perte_' + task_id)
+    st.caption('Après validation : Raison du refus enregistrée, date du jour dans A - Offre perdue, puis statut 60_Perdus.')
     if st.button('Confirmer : offre perdue', disabled=not statut or not motif, type='primary', use_container_width=True):
         try:
-            with chargement_constrelec('Mise à jour du statut…'):
+            with chargement_constrelec('Enregistrement de la raison, de la date puis du statut…'):
                 cle = cle_actions_personnelles()
                 actualiser_tache_session(enregistrer_offre_perdue(task_id, cle, statut, motif))
         except (HTTPError, URLError, TimeoutError, ssl.SSLError, ValueError) as erreur:
             st.error(str(erreur))
         else:
             st.session_state.pop('choix_chance_local_' + task_id, None)
-            st.session_state['relance_message'] = 'Offre marquée comme perdue · ' + projet
+            st.session_state['relance_message'] = 'Offre perdue le ' + aujourd_hui().strftime('%d/%m/%Y') + ' · ' + projet
             actualiser_sans_deplacer()
 
 
