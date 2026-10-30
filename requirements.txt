@@ -1,0 +1,5 @@
+streamlit==1.64.0
+pandas==2.2.3
+pydeck==0.9.3
+truststore==0.10.4
+keyring==25.7.0; sys_platform == "win32"
