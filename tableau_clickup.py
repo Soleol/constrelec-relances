@@ -4339,6 +4339,20 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary [data-testid="stMarkdownContainer"] p,
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary span,
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary svg{color:#111111!important;-webkit-text-fill-color:#111111!important}
+/* Constrelec V9 : remonter le logo et ajouter le filet discret type Soleol. */
+[data-testid="stSidebar"] .st-key-constrelec_logo_entete{
+    margin-top:-18px!important;
+    margin-bottom:2px!important;
+    padding:0!important;
+    border:0!important;
+    background:transparent!important;
+}
+[data-testid="stSidebar"] .st-key-constrelec_logo_entete .constrelec-logo-separateur{
+    width:90%;
+    height:1px;
+    margin:3px auto 3px;
+    background:#353D46;
+}
 </style>""", unsafe_allow_html=True)
 # Constrelec ne propose qu'une seule vue, pour tous les projets de sa liste ClickUp.
 # Réinitialiser aussi les sessions ouvertes sur une version précédente.
@@ -4351,7 +4365,9 @@ with st.container(key='presences_entete'):
 st.markdown('<div class="hero"><div><div class="eyebrow">PORTEFEUILLE COMMERCIAL</div><h1>' + escape(libelle_vendeur(vendeur_titre) or "Relances clients") + '</h1><p>Vos clients. Vos projets. Vos prochaines relances.</p></div></div>', unsafe_allow_html=True)
 
 with st.sidebar:
-    afficher_logo_constrelec()
+    with st.container(key="constrelec_logo_entete"):
+        afficher_logo_constrelec()
+        st.markdown('<div class="constrelec-logo-separateur" aria-hidden="true"></div>', unsafe_allow_html=True)
 retour_oauth()
 with st.sidebar:
     afficher_connexion_commentaires()
