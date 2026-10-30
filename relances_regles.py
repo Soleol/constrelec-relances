@@ -4,10 +4,10 @@ from zoneinfo import ZoneInfo
 import re
 import unicodedata
 
-LIBELLES_RELANCES = ('Première relance', 'Deuxième relance', 'Troisième relance',
-    'Quatrième relance', 'Cinquième relance', 'Sixième relance', 'Septième relance',
-    'Huitième relance', 'Neuvième relance', 'Dixième relance')
-COLONNES_RELANCES = tuple(('1ère' if n == 1 else f'{n}ème') + ' relance' for n in range(1, 11))
+# Constrelec dispose de quatre champs de relance dans ClickUp.
+MAX_RELANCES = 4
+LIBELLES_RELANCES = ('Première relance', 'Deuxième relance', 'Troisième relance', 'Quatrième relance')
+COLONNES_RELANCES = tuple(('1ère' if n == 1 else f'{n}ème') + ' relance' for n in range(1, MAX_RELANCES + 1))
 # Les membres de l’équipe sont identifiés depuis la liste ClickUp Constrelec.
 # Aucun destinataire de courriel n’est codé dans cette version.
 
@@ -23,7 +23,7 @@ def prochaine_relance(dates):
     # continuer après le niveau le plus élevé renseigné, sans réécrire l'historique.
     indices = [i for i, d in enumerate(dates) if isinstance(d, date)]
     numero = max(indices, default=-1) + 2
-    return numero if numero <= 10 else None
+    return numero if numero <= MAX_RELANCES else None
 
 NOMS_TYPE_PROJET = ('Type de projet', 'Type projet', 'A - Type de projet', 'Type de projets')
 
