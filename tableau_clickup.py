@@ -3894,7 +3894,7 @@ def afficher_connexion_commentaires():
     config = configuration_oauth()
     if not config:
         with st.container(key='action_clickup_connexion'):
-            st.button('Synchroniser mon compte ClickUp', key='oauth_config_manquante',
+            st.button('Synchroniser mon ClickUp', key='oauth_config_manquante',
                       disabled=True, use_container_width=True,
                       help='La synchronisation nécessite une application OAuth ClickUp configurée dans les Secrets Streamlit.')
         st.caption('Synchronisation à activer par l’administrateur (identifiant OAuth, secret OAuth et URL de retour).')
@@ -3923,7 +3923,7 @@ def afficher_connexion_commentaires():
     url = 'https://app.clickup.com/api?' + urlencode({
         'client_id': config['client_id'], 'redirect_uri': config['redirect_uri'], 'state': attente[0]})
     with st.container(key='action_clickup_connexion'):
-        st.link_button('Synchroniser mon compte ClickUp', url, type='primary', use_container_width=True,
+        st.link_button('Synchroniser mon ClickUp', url, type='primary', use_container_width=True,
                        help='Connecter mon compte ClickUp pour enregistrer mes relances et mes commentaires.')
     st.caption('Connectez votre compte ClickUp personnel : vos commentaires et relances apparaîtront sous votre nom.')
     if st.session_state.get('_oauth_message'):
@@ -4010,7 +4010,6 @@ def charger(cle, progression):
         with gauche:
             afficher_photo_chargement_constrelec()
         with droite:
-            afficher_logo_constrelec()
             st.markdown('<div class="eyebrow">VOTRE ESPACE COMMERCIAL</div>', unsafe_allow_html=True)
             st.subheader("Chaque projet mérite un suivi attentif.")
             st.write("Nous préparons vos portefeuilles et vos prochaines relances.")
@@ -4076,7 +4075,7 @@ def charger(cle, progression):
 st.markdown("""<style>
 .stApp {background:radial-gradient(ellipse at 85% 0%,#281E1C 0,transparent 45%),#101419;color:#edf0f4}
 [data-testid="stHeader"] {background:#101419}
-[data-testid="stSidebar"] {background:#15191E;border-right:1px solid #303033}
+[data-testid="stSidebar"] {background:#111419;border-right:1px solid #303033}
 .block-container {max-width:1450px;padding-top:5rem;padding-bottom:4rem}
 h1,h2,h3 {letter-spacing:-.035em;color:#f4f6f8!important}
 [data-testid="stMetric"] {background:radial-gradient(ellipse at 100% 0%,#E2232328,transparent 75%),linear-gradient(135deg,#272321,#191D23);border:1px solid #383536;border-top:2px solid #E22323;border-radius:18px;padding:22px;box-shadow:0 10px 30px #00000020}
@@ -4262,7 +4261,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 .hero>div{position:relative;z-index:1}
 
 @media(max-width:650px){}
-.st-key-brand_sidebar{margin-top:-28px;margin-bottom:12px;padding:12px;background:#111419;border-radius:13px;border:1px solid #2D333B}
+/* The Constrelec logo has no card: it is displayed directly on the sidebar. */
 [class*="st-key-action_"] button,[class*="st-key-action_"] a{padding:8px 10px;font-size:13px;white-space:normal;justify-content:center}
 [class*="st-key-action_"] button:before,[class*="st-key-action_"] a:before{width:21px;height:21px}
 [class*="st-key-actions_compactes_"]{width:550px!important;max-width:100%!important}
@@ -4279,9 +4278,15 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 [data-testid="stSidebar"] .st-key-action_clickup_connexion a{
     width:100%!important;max-width:none!important;box-sizing:border-box!important;
 }
-[data-testid="stSidebar"] .st-key-action_clickup_connexion a{
-    justify-content:flex-start!important;padding:10px 16px!important;
-    white-space:normal!important;min-height:46px!important;
+[data-testid="stSidebar"] .st-key-action_clickup_connexion a,
+[data-testid="stSidebar"] .st-key-action_clickup_connexion button{
+    justify-content:flex-start!important;padding:10px 11px!important;
+    width:100%!important;max-width:none!important;
+    white-space:nowrap!important;min-height:46px!important;
+    font-size:13px!important;
+}
+[data-testid="stSidebar"] .st-key-action_clickup_connexion [data-testid="stMarkdownContainer"] p{
+    white-space:nowrap!important;
 }
 /* V70 : dialogues et navigation sombres, lisibles même avec le thème clair. */
 [data-testid="stDialog"] [data-testid="stMarkdownContainer"],
@@ -4345,7 +4350,7 @@ with st.container(key='presences_entete'):
     afficher_presences()
 st.markdown('<div class="hero"><div><div class="eyebrow">PORTEFEUILLE COMMERCIAL</div><h1>' + escape(libelle_vendeur(vendeur_titre) or "Relances clients") + '</h1><p>Vos clients. Vos projets. Vos prochaines relances.</p></div></div>', unsafe_allow_html=True)
 
-with st.sidebar.container(key="brand_sidebar"):
+with st.sidebar:
     afficher_logo_constrelec()
 retour_oauth()
 with st.sidebar:
