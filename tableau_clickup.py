@@ -1,4 +1,4 @@
-# Constrelec V4 · logo sombre, portefeuille personnel ClickUp, quatre relances, commentaire par Entrée
+# Constrelec V6 · photo sur le chargement, logo sombre adapté à la barre latérale
 """Lancer : py -m streamlit run tableau_clickup.py --server.address 127.0.0.1"""
 import ssl
 import secrets
@@ -924,8 +924,6 @@ def afficher_connexion_commentaires():
             st.caption('ID du compte : ' + personnel['utilisateur']['id'])
             if st.button('Déconnecter mon compte ClickUp', key='oauth_deconnexion', use_container_width=True):
                 st.session_state.pop('_clickup_personnel', None)
-                if st.session_state.get('vendeur_actif') == 'Mes relances':
-                    st.session_state['vendeur_actif'] = 'Portefeuille global'
                 st.rerun()
         return
     config = configuration_oauth()
@@ -943,8 +941,8 @@ def afficher_connexion_commentaires():
             st.session_state.pop('_oauth_demande', None)
             if 'jeton' in resultat:
                 st.session_state['_clickup_personnel'] = resultat
-                # Après synchronisation, afficher les projets affectés au compte connecté.
-                st.session_state['vendeur_actif'] = 'Mes relances'
+                # La synchronisation personnalise les écritures, mais ne modifie pas le portefeuille global.
+                st.session_state['vendeur_actif'] = 'Portefeuille global'
                 st.session_state['_oauth_confirmation'] = resultat['utilisateur']['nom']
                 st.session_state.pop('_oauth_message', None)
                 st.rerun()
@@ -1042,15 +1040,26 @@ def afficher_chargement(zone, pourcentage, texte):
 
 
 def charger(cle, progression):
+    # Ecran d'accueil transitoire : la photo fournie reste visible pendant la
+    # lecture de la liste ClickUp et disparaît dès la préparation terminée.
     with progression.container():
-        gauche, droite = st.columns([1.15, 1], vertical_alignment="center")
-        with gauche:
-            st.image(Path(__file__).parent / "assets" / "logo_constrelec.png", use_container_width=True)
-        with droite:
-            st.markdown('<div class="eyebrow">VOTRE ESPACE COMMERCIAL</div>', unsafe_allow_html=True)
-            st.subheader("Chaque projet mérite un suivi attentif.")
-            st.write("Nous préparons vos portefeuilles et vos prochaines relances.")
-            barre = st.progress(0, text="0 % · Connexion à ClickUp…")
+        with st.container(key="chargement_accueil"):
+            gauche, droite = st.columns([1.3, 1], vertical_alignment="center", gap="large")
+            with gauche:
+                st.image(
+                    Path(__file__).parent / "assets" / "photo_chargement_constrelec.jpg",
+                    use_container_width=True,
+                )
+            with droite:
+                st.markdown(
+                    '<div class="chargement-texte">'
+                    '<span class="eyebrow">CONSTRELEC SA · PORTEFEUILLE COMMERCIAL</span>'
+                    '<h1>Relances clients</h1>'
+                    '<p>Chargement de vos offres et de vos prochaines relances depuis ClickUp.</p>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                barre = st.progress(0, text="0 % · Connexion à ClickUp…")
     progression = {"barre": barre}
     afficher_chargement(progression, 0, "Connexion à la liste ClickUp…")
     liste = lire_api(f"list/{LISTE_ID}", cle)
@@ -1112,7 +1121,7 @@ def charger(cle, progression):
 st.markdown("""<style>
 .stApp {background:radial-gradient(ellipse at 85% 0%,#281E1C 0,transparent 45%),#101419;color:#edf0f4}
 [data-testid="stHeader"] {background:#101419}
-[data-testid="stSidebar"] {background:#15191E;border-right:1px solid #303033}
+[data-testid="stSidebar"] {background:#111419;border-right:1px solid #303033}
 .block-container {max-width:1450px;padding-top:5rem;padding-bottom:4rem}
 h1,h2,h3 {letter-spacing:-.035em;color:#f4f6f8!important}
 [data-testid="stMetric"] {background:radial-gradient(ellipse at 100% 0%,#E2232328,transparent 75%),linear-gradient(135deg,#272321,#191D23);border:1px solid #383536;border-top:2px solid #E22323;border-radius:18px;padding:22px;box-shadow:0 10px 30px #00000020}
@@ -1143,6 +1152,29 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 .label-tri{font-size:14px;font-weight:400;color:#EDF0F4;margin-bottom:8px}
 .st-key-filtres_clients{background:#1B1E24;border:1px solid #454047;border-radius:12px;padding:16px;margin:0 0 12px}
 [data-testid="stVegaLiteChart"], [data-testid="stVegaLiteChart"] canvas, [data-testid="stVegaLiteChart"] svg{background:transparent!important}
+/* Première page de chargement : photo réelle de l'atelier Constrelec. */
+.st-key-chargement_accueil{
+    padding:clamp(14px,2.4vw,32px);
+    background:linear-gradient(120deg,#181B20 0%,#20191A 100%);
+    border:1px solid #383137;
+    border-radius:22px;
+    box-shadow:0 18px 45px #00000038;
+    margin:12px 0 26px;
+}
+.st-key-chargement_accueil [data-testid="stImage"]{overflow:hidden;border-radius:15px}
+.st-key-chargement_accueil [data-testid="stImage"] img{
+    display:block;width:100%;height:clamp(260px,43vh,425px);
+    object-fit:cover;object-position:42% center;
+    border-radius:15px;
+}
+.chargement-texte .eyebrow{color:#F18888;font-size:11px;letter-spacing:.16em}
+.chargement-texte h1{color:#FFF!important;font-size:clamp(30px,3vw,46px);line-height:1.12;margin:18px 0 14px;letter-spacing:-.04em}
+.chargement-texte p{color:#CDD0D6;font-size:15px;line-height:1.65;margin:0 0 30px}
+.st-key-chargement_accueil [data-testid="stProgress"]{margin-top:14px}
+@media(max-width:850px){
+    .st-key-chargement_accueil [data-testid="stImage"] img{height:clamp(220px,35vh,340px)}
+    .chargement-texte p{margin-bottom:16px}
+}
 .chargement-constrelec{display:flex;align-items:center;gap:10px;color:#EDF0F4;font-size:14px;padding:8px 0}
 .cercle-constrelec{display:inline-block;width:15px;height:15px;flex:0 0 15px;box-sizing:border-box;border:2px solid #E2232330;border-top-color:#E22323;border-radius:50%;animation:rotation-constrelec .75s linear infinite}
 @keyframes rotation-constrelec{to{transform:rotate(360deg)}}
@@ -1298,7 +1330,10 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 .hero>div{position:relative;z-index:1}
 
 @media(max-width:650px){}
-.st-key-brand_sidebar{margin-top:-28px;margin-bottom:12px;padding:12px;background:#111419;border-radius:13px;border:1px solid #2D333B}
+/* Le logo reprend exactement le fond sombre de la barre latérale, sans encadré. */
+.st-key-brand_sidebar{margin-top:-20px;margin-bottom:14px;padding:0 0 4px;background:transparent;border:0;border-radius:0;box-shadow:none}
+.st-key-brand_sidebar [data-testid="stImage"]{width:100%;max-width:360px;margin:0 auto}
+.st-key-brand_sidebar img{display:block;width:100%;height:auto;object-fit:contain}
 [class*="st-key-action_"] button,[class*="st-key-action_"] a{padding:8px 10px;font-size:13px;white-space:normal;justify-content:center}
 [class*="st-key-action_"] button:before,[class*="st-key-action_"] a:before{width:21px;height:21px}
 [class*="st-key-actions_compactes_"]{width:550px!important;max-width:100%!important}
@@ -1371,16 +1406,14 @@ button:focus-visible,a:focus-visible{outline:2px solid #E22323!important;outline
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary span,
 [data-testid="stDialog"] .st-key-recaps_vendeurs details[open] > summary svg{color:#111111!important;-webkit-text-fill-color:#111111!important}
 </style>""", unsafe_allow_html=True)
-if st.session_state.get("vendeur_actif") not in ("Portefeuille global", "Mes relances", "Admin"):
-    st.session_state["vendeur_actif"] = "Portefeuille global"
-if st.session_state["vendeur_actif"] == "Mes relances" and not compte_personnel_disponible():
-    st.session_state["vendeur_actif"] = "Portefeuille global"
+# Constrelec ne propose qu'une seule vue, pour tous les projets de sa liste ClickUp.
+# Réinitialiser aussi les sessions ouvertes sur une version précédente.
+st.session_state["vendeur_actif"] = "Portefeuille global"
 vendeur_titre = st.session_state["vendeur_actif"]
 if vendeur_titre == "Portefeuille global":
     vendeur_titre = "Relances clients"
 with st.container(key='presences_entete'):
     afficher_presences()
-st.markdown('<div class="hero"><div><div class="eyebrow">PORTEFEUILLE COMMERCIAL</div><h1>' + escape(libelle_vendeur(vendeur_titre) or "Relances clients") + '</h1><p>Vos clients. Vos projets. Vos prochaines relances.</p></div></div>', unsafe_allow_html=True)
 
 with st.sidebar.container(key="brand_sidebar"):
     st.image(Path(__file__).parent / "assets" / "logo_constrelec.png", use_container_width=True)
@@ -1753,17 +1786,21 @@ if st.session_state.pop('_donnees_fraiches', False):
 aujourdhui = aujourd_hui()
 source_actuelle = st.session_state["donnees"]
 cache_portefeuilles = st.session_state.get("_portefeuilles_prepares")
-if (not cache_portefeuilles or cache_portefeuilles.get("version") != 90
+if (not cache_portefeuilles or cache_portefeuilles.get("version") != 91
         or cache_portefeuilles["source"] is not source_actuelle
         or cache_portefeuilles["jour"] != aujourdhui):
     df, mapping, manquants = preparer_portefeuilles(taches, aujourdhui)
-    cache_portefeuilles = {"version": 90, "source": source_actuelle, "jour": aujourdhui,
+    cache_portefeuilles = {"version": 91, "source": source_actuelle, "jour": aujourdhui,
                           "resultat": (df, mapping, manquants), "historiques": {}}
     st.session_state["_portefeuilles_prepares"] = cache_portefeuilles
 else:
     df, mapping, manquants = cache_portefeuilles["resultat"]
 if globals().get("chargement_termine"):
-    progression.progress(100, text="100 % · Vos portefeuilles sont prêts.")
+    # Ne pas laisser la photo et la barre de chargement sur la page principale.
+    progression.empty()
+
+# La page normale reste identique à la V5 après la synchronisation ClickUp.
+st.markdown('<div class="hero"><div><div class="eyebrow">PORTEFEUILLE COMMERCIAL</div><h1>' + escape(libelle_vendeur(vendeur_titre) or "Relances clients") + '</h1><p>Vos clients. Vos projets. Vos prochaines relances.</p></div></div>', unsafe_allow_html=True)
 
 # Les identifiants ClickUp évitent de mélanger deux vendeurs portant le même nom.
 personnes = {}
@@ -1789,24 +1826,10 @@ def nom_vendeur(nom):
 
 
 with st.sidebar:
-    st.markdown('<h3 class="titre-portefeuilles">Vos portefeuilles</h3>', unsafe_allow_html=True)
-    def choisir_vendeur(nom):
-        st.session_state["vendeur_actif"] = nom
-    personnel_connecte = compte_personnel_disponible()
-    st.button("Mes relances", key="choisir_mes_relances", on_click=choisir_vendeur,
-              args=("Mes relances",), use_container_width=True, disabled=not personnel_connecte,
-              type="primary" if st.session_state.get("vendeur_actif") == "Mes relances" else "secondary",
-              help="Relances des projets qui vous sont attribués dans ClickUp. Connectez d’abord votre compte personnel.")
-    st.button("Portefeuille global", key="choisir_global", on_click=choisir_vendeur,
-              args=("Portefeuille global",), use_container_width=True,
-              type="primary" if st.session_state.get("vendeur_actif") == "Portefeuille global" else "secondary")
-    st.button("Non attribuées", key="choisir_admin", on_click=choisir_vendeur,
-              args=("Admin",), use_container_width=True,
-              type="primary" if st.session_state.get("vendeur_actif") == "Admin" else "secondary")
-    vendeur = st.session_state.get("vendeur_actif", "Portefeuille global")
-    st.caption("Offres envoyées depuis le " + DEBUT_RELANCES.strftime("%d.%m.%Y") + " · 1ère relance à 15 jours · suivantes à 30 jours")
-    if ACTIVER_REGLE_ADMIN_AO:
-        st.caption("Projets AO non attribués : délai de 60 jours.")
+    st.markdown('<h3 class="titre-portefeuilles">Portefeuille Constrelec</h3>', unsafe_allow_html=True)
+    st.button("Portefeuille global", key="choisir_global", use_container_width=True, type="primary",
+              on_click=lambda: st.session_state.update(vendeur_actif="Portefeuille global"))
+    vendeur = "Portefeuille global"
 if manquants:
     st.error("Certains champs ClickUp ne sont pas identifiés : " + ", ".join(manquants) + ". Envoyez une capture de ce message pour corriger la détection.")
     st.stop()
@@ -1849,14 +1872,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
     DEBUT = DEBUT_RELANCES
     vue = vue_vendeur[vue_vendeur["Offre envoyée"].apply(lambda d: isinstance(d, date) and DEBUT <= d <= aujourdhui)]
     vue = vue.copy()
-    vue["Type projet"] = vue["Type projet"].replace("", "Non renseigné").fillna("Non renseigné")
-    options_types = ["Tous les types"] + sorted(vue["Type projet"].unique().tolist())
-    cle_type = "filtre_type_" + vendeur
-    if st.session_state.get(cle_type, "Tous les types") not in options_types:
-        st.session_state[cle_type] = "Tous les types"
-    type_selectionne = st.session_state.get(cle_type, "Tous les types")
-    if type_selectionne != "Tous les types":
-        vue = vue[vue["Type projet"] == type_selectionne]
+    # Aucun filtre par type de projet dans Constrelec.
     relances = vue[vue["Suivi"] == "À relancer"].sort_values("Retard (jours)", ascending=False)
     couleur = "#E22323"
     st.markdown('<style>.offer{border-left-color:' + couleur + '}[data-testid="stMetricValue"]{color:' + couleur + '}.step{color:' + couleur + '}</style>', unsafe_allow_html=True)
@@ -1878,7 +1894,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
                 afficher_clients_relances(vendeur, ids_vendeur, aujourdhui)
 
     # Historique des dates enregistrées, y compris les offres qui ont changé de statut.
-    cle_historique = (vendeur, tuple(ids_vendeur), type_selectionne)
+    cle_historique = (vendeur, tuple(ids_vendeur))
     if cle_historique not in cache_portefeuilles["historiques"]:
         historiques = []
         for t in st.session_state["donnees"][1]:
@@ -1891,9 +1907,6 @@ with st.container(key="vue_portefeuille_" + vendeur):
             champs_hist = {c["id"]: c for c in t.get("custom_fields", [])}
             offre_hist = lire_date(champs_hist.get(mapping["Offre envoyée"], {}).get("value"))
             if not offre_hist or not DEBUT <= offre_hist <= aujourdhui:
-                continue
-            type_hist = decoder(champs_hist.get(mapping["Type projet"], {})) or "Non renseigné"
-            if type_selectionne != "Tous les types" and type_hist != type_selectionne:
                 continue
             for etape in LIBELLES_RELANCES:
                 jour = lire_date(champs_hist.get(mapping[etape], {}).get("value"))
@@ -2004,26 +2017,6 @@ with st.container(key="vue_portefeuille_" + vendeur):
                              "y": {"field": "Offres", "type": "quantitative", "title": "Nombre d’offres", "axis": {"tickMinStep": 1}},
                              "tooltip": [{"field": "Retard"}, {"field": "Offres"}]}, "background": "transparent", "config": config_kpi}, theme=None, use_container_width=True)
         st.caption("La première relance est proposée à J+15, puis les suivantes à J+30 après la dernière relance. Une offre partagée compte pour chaque vendeur concerné dans le graphique par vendeur.")
-        st.markdown("**Montants à relancer par type de projet**")
-        sommes_types = {}
-        for _, r_k in relances.iterrows():
-            if isinstance(r_k["Prix offre CHF"], Decimal):
-                nom_k = r_k["Type projet"]
-                sommes_types[nom_k] = sommes_types.get(nom_k, Decimal("0")) + r_k["Prix offre CHF"]
-        if sommes_types:
-            types_couleurs = sorted(set(df["Type projet"].replace("", "Non renseigné").fillna("Non renseigné")))
-            palette_types = list(COULEURS_GRAPHIQUE.values())
-            couleurs_types = [palette_types[i] if i < len(palette_types) else f"hsl({(i * 137.508) % 360:.1f}, 62%, 63%)" for i in range(len(types_couleurs))]
-            st.vega_lite_chart(pd.DataFrame([{"Type de projet": n, "Montant CHF": float(v)} for n,v in sommes_types.items()]), {
-                "mark": {"type": "bar", "cornerRadiusEnd": 4}, "height": 230,
-                "encoding": {"y": {"field": "Type de projet", "type": "nominal", "sort": "-x", "title": None},
-                             "x": {"field": "Montant CHF", "type": "quantitative", "title": "Montant à relancer (CHF)"},
-                             "color": {"field": "Type de projet", "type": "nominal",
-                                       "scale": {"domain": types_couleurs, "range": couleurs_types}, "legend": None},
-                             "tooltip": [{"field": "Type de projet"}, {"field": "Montant CHF", "format": ",.2f", "type": "quantitative"}]}, "background": "transparent", "config": config_kpi}, theme=None, use_container_width=True)
-        else:
-            st.caption("Aucun montant CHF exploitable pour les relances sélectionnées.")
-
         carte_portefeuille(vue, st.session_state["donnees"][1], correspondances)
         st.subheader("Vue d’ensemble des vendeurs")
         synthese = []
@@ -2073,14 +2066,12 @@ with st.container(key="vue_portefeuille_" + vendeur):
     st.subheader("Vos clients à recontacter")
     st.markdown("**Filtrer**")
     with st.container(key="filtres_clients"):
-        filtre_etat_col, filtre_niveau_col, filtre_type_col = st.columns(3, gap="medium")
+        filtre_etat_col, filtre_niveau_col = st.columns(2, gap="medium")
         with filtre_etat_col:
             etat_selectionne = st.selectbox("État relance", ["Actif", "En attente"], key="etat_clients_" + vendeur)
         with filtre_niveau_col:
             filtre_relance = st.selectbox("Niveau de relance", ["Tous les niveaux", *COLONNES_RELANCES],
                                          key="niveau_clients_" + vendeur)
-        with filtre_type_col:
-            st.selectbox("Type de projets", options_types, key=cle_type)
     afficher_attente = etat_selectionne == "En attente"
     relances = vue[vue["Suivi"] == ("En attente" if afficher_attente else "À relancer")].sort_values("Retard (jours)", ascending=False)
     if filtre_relance in COLONNES_RELANCES:
@@ -2091,7 +2082,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
         st.session_state[tri_cle] = OPTIONS_TRI_CLIENTS[2] if ancien_tri == "Montant CHF" else OPTIONS_TRI_CLIENTS[0]
     st.selectbox("Trier", OPTIONS_TRI_CLIENTS, key=tri_cle)
     relances = trier_clients(relances, st.session_state[tri_cle])
-    recherche = st.text_input("Rechercher dans mes relances", key="recherche_"+vendeur, placeholder="Projet, numéro d’offre ou e-mail…")
+    recherche = st.text_input("Rechercher dans les relances", key="recherche_"+vendeur, placeholder="Projet, numéro d’offre ou e-mail…")
     visibles = relances
     if recherche:
         visibles = visibles[visibles[["Projet", "N° offre", "E-mail client"]].fillna("").agg(" ".join,axis=1).str.contains(recherche,case=False,regex=False)]
@@ -2174,7 +2165,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
         if plan_frais != r['Prochaine action']:
             raise ValueError('La prochaine relance a changé dans ClickUp. Actualisez avant de continuer.')
         if (ACTIVER_REGLE_ADMIN_AO and est_admin_ao(frais)) != bool(r['_admin_ao']):
-            raise ValueError('Le portefeuille ou le type de projet a changé. Actualisez avant de continuer.')
+            raise ValueError('Les informations du projet ont changé. Actualisez avant de continuer.')
         echeance = action(dates[0], dates[1:], aujourd_hui(), plan_frais, admin_ao=ACTIVER_REGLE_ADMIN_AO and est_admin_ao(frais))[2]
         programme = plan_frais is not None and echeance == plan_frais
         if not cible or echeance is None or (echeance > aujourd_hui() and not programme):
@@ -2221,7 +2212,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
 
     taille_lot = 10
     cle_limite = "limite_clients_" + vendeur
-    contexte_clients = (vendeur, afficher_attente, type_selectionne, filtre_relance, recherche, st.session_state[tri_cle])
+    contexte_clients = (vendeur, afficher_attente, filtre_relance, recherche, st.session_state[tri_cle])
     if st.session_state.get("_contexte_clients") != contexte_clients:
         st.session_state[cle_limite] = taille_lot
         st.session_state["_contexte_clients"] = contexte_clients
@@ -2237,7 +2228,7 @@ with st.container(key="vue_portefeuille_" + vendeur):
         with st.container(key="fiche_"+r["ID"]):
             fiche_infos, fiche_validation = st.columns([3, 1], vertical_alignment="center")
             with fiche_infos:
-                st.markdown('<article class="offer-content"><span class="badge">' + escape("En attente" if r["Suivi"] == "En attente" else r["Action"]) + ' · ' + str(r["Retard (jours)"]) + ' j de retard</span>' + r['_badges'] + '<h3>' + escape(r["Projet"]) + '</h3><div class="details">' + '<div><span class="label">Référence projet</span>' + escape(r['N° offre'] or 'Non renseigné') + '</div><div class="offer-price"><span class="label">Prix de l’offre</span>' + (argent(r['Prix offre CHF']) if isinstance(r['Prix offre CHF'], Decimal) else 'Non renseigné en CHF') + '</div><div><span class="label">Dernière étape</span>' + escape(derniere_etape(r)) + '</div><div><span class="label">E-mail client</span>' + escape(email or "À compléter dans le message") + '</div><div><span class="label">Téléphone</span>' + escape(telephone) + '</div></div></article>', unsafe_allow_html=True)
+                st.markdown('<article class="offer-content"><span class="badge">' + escape("En attente" if r["Suivi"] == "En attente" else r["Action"]) + ' · ' + str(r["Retard (jours)"]) + ' j de retard</span><h3>' + escape(r["Projet"]) + '</h3><div class="details">' + '<div><span class="label">Référence projet</span>' + escape(r['N° offre'] or 'Non renseigné') + '</div><div class="offer-price"><span class="label">Prix de l’offre</span>' + (argent(r['Prix offre CHF']) if isinstance(r['Prix offre CHF'], Decimal) else 'Non renseigné en CHF') + '</div><div><span class="label">Dernière étape</span>' + escape(derniere_etape(r)) + '</div><div><span class="label">E-mail client</span>' + escape(email or "À compléter dans le message") + '</div><div><span class="label">Téléphone</span>' + escape(telephone) + '</div></div></article>', unsafe_allow_html=True)
             with fiche_validation:
                 choix_selectionne = st.session_state.get("choix_chance_local_" + r["ID"], r["Chance to win"])
                 if CHANCE_ACTIVE:
@@ -2309,8 +2300,6 @@ with st.container(key="vue_portefeuille_" + vendeur):
                         st.button("Préparer l’e-mail", key="email_desactive_" + vendeur + "_" + r["ID"],
                                   disabled=True, type="primary", use_container_width=True,
                                   help="Les 1ère et 2ème relances doivent être effectuées par téléphone" if cible else "Les quatre relances ont déjà été effectuées.")
-                    if email_autorise and not adresse:
-                        st.caption("Adresse e-mail à compléter dans Outlook.")
                 with milieu, st.container(key="action_sharepoint_"+r["ID"]):
                     if r["SharePoint"]:
                         st.link_button("Vers SharePoint", r["SharePoint"], use_container_width=True)
