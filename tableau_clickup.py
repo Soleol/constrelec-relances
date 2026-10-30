@@ -3883,11 +3883,12 @@ def retour_oauth():
 def afficher_connexion_commentaires():
     personnel = st.session_state.get('_clickup_personnel')
     if personnel:
-        st.success('ClickUp synchronisé : ' + personnel['utilisateur']['nom'], icon='✅')
+        # Même présentation discrète que dans l'application Soleol : pas de coche verte.
+        st.caption('Connecté à ClickUp · ' + personnel['utilisateur']['nom'])
         with st.expander('Mon compte ClickUp'):
-            st.caption('Relances et commentaires enregistrés sous votre identité ClickUp.')
-            st.caption('ID du compte : ' + personnel['utilisateur']['id'])
-            if st.button('Déconnecter mon compte ClickUp', key='oauth_deconnexion', use_container_width=True):
+            st.caption('Vos relances, commentaires et modifications sont enregistrés sous ce compte.')
+            st.caption('Identifiant ClickUp : ' + personnel['utilisateur']['id'])
+            if st.button('Déconnecter mon compte', key='oauth_deconnexion', use_container_width=True):
                 st.session_state.pop('_clickup_personnel', None)
                 st.rerun()
         return
@@ -4371,8 +4372,9 @@ with st.sidebar:
 retour_oauth()
 with st.sidebar:
     afficher_connexion_commentaires()
-if st.session_state.get('_oauth_confirmation'):
-    st.success('Le compte ClickUp de ' + st.session_state.pop('_oauth_confirmation') + ' a bien été connecté à l’application Relances clients.')
+# Le statut de connexion est déjà visible dans la barre latérale.
+# Supprimer la notification verte supplémentaire après une autorisation OAuth.
+st.session_state.pop('_oauth_confirmation', None)
 
 # Cloud : clé fournie uniquement par les secrets du serveur.
 # Windows local : conservation du coffre existant si aucun secret serveur.
